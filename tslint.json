@@ -1,0 +1,28 @@
+{
+  "defaultSeverity": "error",
+  "exclude": "dist/",
+  "extends": [
+    "tslint-config-airbnb",
+    "tslint-config-prettier"
+  ],
+  "jsRules": {},
+  "plugins": [
+    "tslint-plugin-prettier"
+  ],
+  "rules": {
+    "prettier": [
+      true,
+      {
+        "arrowParens": "always",
+        "semi": true,
+        "singleQuote": true,
+        "tabWidth": 2,
+        "trailingComma": "all",
+        "printWidth": 100
+      }
+    ]
+  },
+  "rulesDirectory": [
+    "tslint-plugin-prettier"
+  ]
+}
