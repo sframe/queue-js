@@ -1,10 +1,15 @@
-import { EventEmitter } from 'events';
-import debug from 'debug';
-import { QueueItem } from './queue-item';
-const DEBUG = debug('sitemap-script:queue');
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const events_1 = require("events");
+const debug_1 = __importDefault(require("debug"));
+const queue_item_1 = require("./queue-item");
+const DEBUG = debug_1.default('sitemap-script:queue');
 const CONCURRENT_MAX = 1; // no fewer than 1
 const QUEUE_INTERVAL_MS = 15; // no fewer than 15ms
-export class Queue extends EventEmitter {
+class Queue extends events_1.EventEmitter {
     constructor(options = {}) {
         super();
         this.backlog = [];
@@ -93,8 +98,10 @@ export class Queue extends EventEmitter {
         return [];
     }
     put(fn, fnParams, options) {
-        const item = new QueueItem(fn, fnParams, options);
+        const item = new queue_item_1.QueueItem(fn, fnParams, options);
         this.start().addToQueue(item);
         return item;
     }
 }
+exports.Queue = Queue;
+//# sourceMappingURL=queue.js.map
