@@ -1,0 +1,2 @@
+# queue
+JavaScript queue library
