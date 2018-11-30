@@ -9,13 +9,13 @@ JavaScript queue library
 ```
 
 ```js
-const Queue = require('queue');
+const { Queue } = require('@coxmediagroup/queue');
 
 // Create a new Queue
 const queue = new Queue();
 
 // Example function to be queued and run
-const fn = (input1, input2) => `${input1} ${inoput2}`;
+const fn = (input1, input2) => `${input1} ${input2}`;
 
 // Put a function and its parameters onto the queue
 queue.put(fn, ['hello', 'world!']));
