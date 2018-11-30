@@ -1,4 +1,7 @@
 import { EventEmitter } from 'events';
+import debug from 'debug';
+
+const DEBUG = debug('queue:queue-item');
 
 const DONE_STATUSES = ['Failed', 'Success'];
 
@@ -52,6 +55,7 @@ export class QueueItem extends EventEmitter {
       this.results = await this.fn(...this.fnParams);
       return this.setStatus('Success').complete();
     } catch (err) {
+      DEBUG(`Error (retries left: ${this.retries}): ${err}`);
       this.setError(err);
       if (this.retries > 0) {
         return this.setStatus('Retry');
