@@ -3,7 +3,7 @@ import debug from 'debug';
 
 import { QueueItem, QueueFnType, QueueFnParamsType, QueueItemOptionsType } from './queue-item';
 
-const DEBUG = debug('sitemap-script:queue');
+const DEBUG = debug('queue:queue');
 
 const CONCURRENT_MAX = 1; // no fewer than 1
 const QUEUE_INTERVAL_MS = 15; // no fewer than 15ms

@@ -72,4 +72,25 @@ describe('Queue class', () => {
       done();
     });
   });
+
+  it('should fail gracefully and not raise errors outside the queue', (done) => {
+    const SILLY_EXCEPTION = new Error('Bad');
+
+    function badFunction() {
+      throw SILLY_EXCEPTION;
+    }
+
+    const queue = new Queue({ queueIntervalMS: 15 });
+    const queueItem = queue.put(badFunction, [], { retries: 4 });
+
+    queue.once('stop', () => {
+      expect(queueItem).toMatchObject({
+        error: SILLY_EXCEPTION,
+        results: null,
+        retries: 0,
+        status: 'Failed',
+      });
+      done();
+    });
+  });
 });
