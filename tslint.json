@@ -1,6 +1,11 @@
 {
   "defaultSeverity": "error",
-  "exclude": "dist/",
+  "include": [
+    "src/**"
+  ],
+  "exclude": [
+    "dist/**"
+  ],
   "extends": [
     "tslint-config-airbnb",
     "tslint-config-prettier"
