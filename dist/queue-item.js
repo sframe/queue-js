@@ -7,8 +7,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const events_1 = require("events");
+const debug_1 = __importDefault(require("debug"));
+const DEBUG = debug_1.default('queue:queue-item');
 const DONE_STATUSES = ['Failed', 'Success'];
 class QueueItem extends events_1.EventEmitter {
     constructor(fn, fnParams, options = {}) {
@@ -37,6 +42,7 @@ class QueueItem extends events_1.EventEmitter {
                 return this.setStatus('Success').complete();
             }
             catch (err) {
+                DEBUG(`Error (retries left: ${this.retries}): ${err}`);
                 this.setError(err);
                 if (this.retries > 0) {
                     return this.setStatus('Retry');

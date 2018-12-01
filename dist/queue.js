@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const events_1 = require("events");
 const debug_1 = __importDefault(require("debug"));
 const queue_item_1 = require("./queue-item");
-const DEBUG = debug_1.default('sitemap-script:queue');
+const DEBUG = debug_1.default('queue:queue');
 const CONCURRENT_MAX = 1; // no fewer than 1
 const QUEUE_INTERVAL_MS = 15; // no fewer than 15ms
 class Queue extends events_1.EventEmitter {

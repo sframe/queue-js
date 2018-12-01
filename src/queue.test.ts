@@ -72,4 +72,75 @@ describe('Queue class', () => {
       done();
     });
   });
+
+  it('should fail gracefully and not raise errors outside the queue', (done) => {
+    const SILLY_EXCEPTION = new Error('Bad');
+
+    function badFunction() {
+      throw SILLY_EXCEPTION;
+    }
+
+    const queue = new Queue({ queueIntervalMS: 15 });
+    const queueItem = queue.put(badFunction, [], { retries: 4 });
+
+    queue.once('stop', () => {
+      expect(queueItem).toMatchObject({
+        error: SILLY_EXCEPTION,
+        results: null,
+        retries: 0,
+        status: 'Failed',
+      });
+      done();
+    });
+  });
+
+  it('should fail gracefully and not raise errors outside the queue, with callbacks', (done) => {
+    const SILLY_EXCEPTION = new Error('Bad');
+
+    function badFunction() {
+      throw SILLY_EXCEPTION;
+    }
+
+    function goodFunction(callback) {
+      return callback();
+    }
+
+    const queue = new Queue({ queueIntervalMS: 15 });
+    const queueItem = queue.put(goodFunction, [badFunction], { retries: 4 });
+
+    queue.once('stop', () => {
+      expect(queueItem).toMatchObject({
+        error: SILLY_EXCEPTION,
+        results: null,
+        retries: 0,
+        status: 'Failed',
+      });
+      done();
+    });
+  });
+
+  it('should fail gracefully and not raise errors outside the queue, with promises', (done) => {
+    const SILLY_EXCEPTION = new Error('Bad');
+
+    async function badPromise() {
+      throw SILLY_EXCEPTION;
+    }
+
+    async function goodPromise(promise) {
+      return promise();
+    }
+
+    const queue = new Queue({ queueIntervalMS: 15 });
+    const queueItem = queue.put(goodPromise, [badPromise], { retries: 4 });
+
+    queue.once('stop', () => {
+      expect(queueItem).toMatchObject({
+        error: SILLY_EXCEPTION,
+        results: null,
+        retries: 0,
+        status: 'Failed',
+      });
+      done();
+    });
+  });
 });
