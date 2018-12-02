@@ -14,60 +14,78 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const events_1 = require("events");
 const debug_1 = __importDefault(require("debug"));
 const DEBUG = debug_1.default('queue:queue-item');
-const DONE_STATUSES = ['Failed', 'Success'];
+const DONE_STATUSES = ['failed', 'success'];
 class QueueItem extends events_1.EventEmitter {
     constructor(fn, fnParams, options = {}) {
         super();
+        this.privTaskLabel = null;
         this.error = null;
         this.results = null;
-        this.status = 'Pending';
+        this.status = 'pending';
         const { retries = 0 } = options;
         this.fn = fn;
         this.fnParams = fnParams;
         this.retries = retries;
     }
     complete() {
-        this.emit('done', this);
+        DEBUG(`${this} - complete`);
+        this.emit('complete', this);
         return this;
     }
-    get done() {
-        const isDone = DONE_STATUSES.includes(this.status);
-        return isDone;
+    success() {
+        this.error = null;
+        this.status = 'success';
+        DEBUG(`${this} - success`);
+        this.emit('success', this);
+        return this.complete();
     }
-    exec() {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.setError(null).setStatus('Pending');
-            try {
-                this.results = yield this.fn(...this.fnParams);
-                return this.setStatus('Success').complete();
-            }
-            catch (err) {
-                DEBUG(`Error (retries left: ${this.retries}): ${err}`);
-                this.setError(err);
-                if (this.retries > 0) {
-                    return this.setStatus('Retry');
-                }
-                return this.setStatus('Failed').complete();
-            }
-        });
-    }
-    setError(e) {
-        this.error = e;
-        return this;
-    }
-    setStatus(status) {
-        this.status = status;
-        return this;
-    }
-    tick() {
+    retry() {
+        this.status = 'retry';
         this.retries = Math.max(this.retries - 1, 0);
+        DEBUG(`${this} - retry: ${this.retries}`);
+        this.emit('retry', this);
         return this;
+    }
+    fail() {
+        this.status = 'failed';
+        DEBUG(`${this} - fail`);
+        this.emit('fail', this);
+        return this.complete();
+    }
+    get taskLabel() {
+        return this.privTaskLabel;
+    }
+    set taskLabel(taskLabel) {
+        if (this.privTaskLabel === null) {
+            this.privTaskLabel = taskLabel;
+        }
+    }
+    toString() {
+        if (this.taskLabel === null) {
+            return '(anonymous)';
+        }
+        return `Task: ${this.taskLabel}`;
+    }
+    isDone() {
+        return DONE_STATUSES.includes(this.status);
     }
     run() {
-        if (this.done) {
-            return Promise.resolve(this);
-        }
-        return this.tick().exec();
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this.isDone()) {
+                return this;
+            }
+            try {
+                this.results = yield this.fn(...this.fnParams);
+            }
+            catch (error) {
+                this.error = error;
+                if (this.retries > 0) {
+                    return this.retry();
+                }
+                return this.fail();
+            }
+            return this.success();
+        });
     }
 }
 exports.QueueItem = QueueItem;

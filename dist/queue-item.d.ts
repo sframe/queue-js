@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import { EventEmitter } from 'events';
-export declare type QueueItemStatus = 'Pending' | 'Retry' | 'Failed' | 'Success';
+export declare type QueueItemStatus = 'failed' | 'pending' | 'retry' | 'success';
 export declare type QueueFnType = (...params: any[]) => any;
 export declare type QueueFnParamsType = any[];
 export declare type QueueItemOptionsType = {
@@ -14,16 +14,18 @@ export interface QueueItemParams {
 export declare class QueueItem extends EventEmitter {
     private fn;
     private fnParams;
+    private privTaskLabel;
     error: Error | null;
     results: any | null;
     retries: number;
     status: QueueItemStatus;
-    constructor(fn: any, fnParams: any, options?: QueueItemOptionsType);
+    constructor(fn: QueueFnType, fnParams: QueueFnParamsType, options?: QueueItemOptionsType);
     private complete;
-    readonly done: boolean;
-    private exec;
-    private setError;
-    private setStatus;
-    private tick;
+    private success;
+    private retry;
+    private fail;
+    taskLabel: string | number | null;
+    toString(): string;
+    isDone(): boolean;
     run(): Promise<this>;
 }

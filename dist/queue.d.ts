@@ -6,22 +6,25 @@ export declare type QueueOptions = {
     queueIntervalMS?: number;
 };
 export declare class Queue extends EventEmitter {
+    private active;
+    private backlog;
     private concurrentMax;
     private queueIntervalMS;
-    private backlog;
-    private active;
+    private taskCounter;
     private timerID;
     constructor(options?: QueueOptions);
     private readonly isEmpty;
+    private addToQueue;
+    private moveToActive;
+    private moveToQueue;
     private processItem;
     private processQueue;
-    private start;
-    private stop;
-    private status;
-    private addToQueue;
-    private sliceAmount;
     private removeFromActive;
-    private moveToQueue;
-    private moveToActive;
+    private start;
+    private status;
+    private stop;
+    private sliceAmount;
+    private getTaskNumber;
+    readonly size: number;
     put(fn: QueueFnType, fnParams: QueueFnParamsType, options?: QueueItemOptionsType): QueueItem;
 }

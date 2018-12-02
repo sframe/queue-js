@@ -7,68 +7,77 @@ describe('Queue class', () => {
 
   it('Should process items pushed onto the queue and begin processing', (done) => {
     const queue = new Queue({ concurrentMax: 2, queueIntervalMS: 15 });
-    const trackedQueueItems: any[] = [];
 
     const preStartExpected = [
       {
+        error: null,
         results: 'hello world (1)',
-        status: 'Success',
+        retries: 0,
+        status: 'success',
       },
       {
+        error: null,
         results: 'hello world (2)',
-        status: 'Success',
+        retries: 0,
+        status: 'success',
       },
       {
+        error: null,
         results: 'hello world (3)',
-        status: 'Success',
+        retries: 0,
+        status: 'success',
       },
       {
+        error: null,
         results: 'hello world (4)',
-        status: 'Success',
+        retries: 0,
+        status: 'success',
       },
       {
+        error: null,
         results: 'hello world (5)',
-        status: 'Success',
+        retries: 0,
+        status: 'success',
       },
     ];
 
-    trackedQueueItems.push(queue.put(fn, ['hello', 'world', '(1)']));
-    trackedQueueItems.push(queue.put(fn, ['hello', 'world', '(2)']));
-    trackedQueueItems.push(queue.put(fn, ['hello', 'world', '(3)']));
-    trackedQueueItems.push(queue.put(fn, ['hello', 'world', '(4)']));
-    trackedQueueItems.push(queue.put(fn, ['hello', 'world', '(5)']));
+    const queueItems = [
+      queue.put(fn, ['hello', 'world', '(1)'], { retries: 0 }),
+      queue.put(fn, ['hello', 'world', '(2)'], { retries: 0 }),
+      queue.put(fn, ['hello', 'world', '(3)'], { retries: 0 }),
+      queue.put(fn, ['hello', 'world', '(4)'], { retries: 0 }),
+      queue.put(fn, ['hello', 'world', '(5)'], { retries: 0 }),
+    ];
 
     queue.once('stop', () => {
-      expect(trackedQueueItems).toMatchObject(preStartExpected);
+      expect(queueItems).toMatchObject(preStartExpected);
       done();
     });
   });
 
   it('should re-invoke function on exception if retries is set.', (done) => {
     let magicProblemCounter = 2;
+
     function problemFn() {
       if (magicProblemCounter > 0) {
         magicProblemCounter -= 1;
         throw new Error(`Mostly does not work! [ ${magicProblemCounter} ]`);
       }
+
       return 'Sometimes it works!';
     }
 
+    const expected = {
+      results: 'Sometimes it works!',
+      retries: 2,
+      status: 'success',
+    };
+
     const queue = new Queue({ queueIntervalMS: 15 });
-    const trackedQueueItems: any[] = [];
-
-    const expected = [
-      {
-        results: 'Sometimes it works!',
-        retries: 1,
-        status: 'Success',
-      },
-    ];
-
-    trackedQueueItems.push(queue.put(problemFn, [], { retries: 4 }));
+    const queueItem = queue.put(problemFn, [], { retries: 4 });
 
     queue.once('stop', () => {
-      expect(trackedQueueItems).toMatchObject(expected);
+      expect(queueItem).toMatchObject(expected);
       done();
     });
   });
@@ -80,16 +89,18 @@ describe('Queue class', () => {
       throw SILLY_EXCEPTION;
     }
 
+    const expected = {
+      error: SILLY_EXCEPTION,
+      results: null,
+      retries: 0,
+      status: 'failed',
+    };
+
     const queue = new Queue({ queueIntervalMS: 15 });
     const queueItem = queue.put(badFunction, [], { retries: 4 });
 
     queue.once('stop', () => {
-      expect(queueItem).toMatchObject({
-        error: SILLY_EXCEPTION,
-        results: null,
-        retries: 0,
-        status: 'Failed',
-      });
+      expect(queueItem).toMatchObject(expected);
       done();
     });
   });
@@ -105,16 +116,18 @@ describe('Queue class', () => {
       return callback();
     }
 
+    const expected = {
+      error: SILLY_EXCEPTION,
+      results: null,
+      retries: 0,
+      status: 'failed',
+    };
+
     const queue = new Queue({ queueIntervalMS: 15 });
     const queueItem = queue.put(goodFunction, [badFunction], { retries: 4 });
 
     queue.once('stop', () => {
-      expect(queueItem).toMatchObject({
-        error: SILLY_EXCEPTION,
-        results: null,
-        retries: 0,
-        status: 'Failed',
-      });
+      expect(queueItem).toMatchObject(expected);
       done();
     });
   });
@@ -122,24 +135,26 @@ describe('Queue class', () => {
   it('should fail gracefully and not raise errors outside the queue, with promises', (done) => {
     const SILLY_EXCEPTION = new Error('Bad');
 
-    async function badPromise() {
+    async function badPromise(): Promise<void> {
       throw SILLY_EXCEPTION;
     }
 
-    async function goodPromise(promise) {
+    async function goodPromise(promise: Function): Promise<void> {
       return promise();
     }
+
+    const expected = {
+      error: SILLY_EXCEPTION,
+      results: null,
+      retries: 0,
+      status: 'failed',
+    };
 
     const queue = new Queue({ queueIntervalMS: 15 });
     const queueItem = queue.put(goodPromise, [badPromise], { retries: 4 });
 
     queue.once('stop', () => {
-      expect(queueItem).toMatchObject({
-        error: SILLY_EXCEPTION,
-        results: null,
-        retries: 0,
-        status: 'Failed',
-      });
+      expect(queueItem).toMatchObject(expected);
       done();
     });
   });
