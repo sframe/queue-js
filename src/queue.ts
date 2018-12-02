@@ -1,12 +1,16 @@
 import { EventEmitter } from 'events';
+
 import debug from 'debug';
 
 import { QueueItem, QueueFnType, QueueFnParamsType, QueueItemOptionsType } from './queue-item';
 
 const DEBUG = debug('queue:queue');
 
-const CONCURRENT_MAX = 1; // no fewer than 1
-const QUEUE_INTERVAL_MS = 15; // no fewer than 15ms
+// No fewer than 1 concurrent task
+const CONCURRENT_MAX = 1;
+
+// No less than 15 ms between polling the queue
+const QUEUE_INTERVAL_MS = 15;
 
 export type QueueOptions = {
   concurrentMax?: number;
@@ -14,10 +18,11 @@ export type QueueOptions = {
 };
 
 export class Queue extends EventEmitter {
-  private concurrentMax;
-  private queueIntervalMS;
-  private backlog: QueueItem[] = [];
   private active: Set<QueueItem> = new Set();
+  private backlog: QueueItem[] = [];
+  private concurrentMax: number;
+  private queueIntervalMS: number;
+  private taskCounter = 0;
   private timerID: NodeJS.Timer | undefined;
 
   constructor(options: QueueOptions = {}) {
@@ -30,13 +35,40 @@ export class Queue extends EventEmitter {
   }
 
   private get isEmpty(): boolean {
-    return this.backlog.length === 0 && this.active.size === 0;
+    return this.size === 0;
+  }
+
+  private addToQueue(item: QueueItem): QueueItem {
+    if (!this.backlog.includes(item)) {
+      this.backlog.push(item);
+      this.status();
+    }
+
+    return item;
+  }
+
+  private moveToActive(): QueueItem[] {
+    const avail = this.sliceAmount();
+    const items = this.backlog.splice(0, avail);
+
+    if (items.length) {
+      this.active = new Set([...this.active, ...items]);
+      this.status();
+      return items;
+    }
+
+    return [];
+  }
+
+  private moveToQueue(item: QueueItem): void {
+    this.active.delete(item);
+    this.addToQueue(item);
   }
 
   private processItem(item: QueueItem): void {
-    if (!item.done) {
+    if (!item.isDone()) {
       Promise.resolve(item.run()).then(() => {
-        if (item.done) {
+        if (item.isDone()) {
           this.removeFromActive(item);
         } else {
           this.moveToQueue(item);
@@ -49,19 +81,34 @@ export class Queue extends EventEmitter {
     this.moveToActive().map((item) => this.processItem(item));
 
     if (this.isEmpty) {
-      this.stop();
+      return this.stop();
     }
 
     return this;
   }
 
+  private removeFromActive(item: QueueItem): void {
+    this.active.delete(item);
+    this.status();
+  }
+
   private start(): this {
     if (typeof this.timerID === 'undefined') {
       this.timerID = setInterval(this.processQueue.bind(this), this.queueIntervalMS);
-      this.emit('start');
+
       DEBUG(`queue status: start`);
-      this.status();
+      this.emit('start', this);
+
+      return this.status();
     }
+
+    return this;
+  }
+
+  private status(): this {
+    DEBUG(`queue status: backlog: ${this.backlog.length}, active: ${this.active.size}`);
+    this.emit('status', this);
+
     return this;
   }
 
@@ -69,8 +116,9 @@ export class Queue extends EventEmitter {
     const reallyStop = () => {
       if (this.isEmpty) {
         clearTimeout(this.timerID as NodeJS.Timer);
-        this.emit('stop');
+
         DEBUG('queue status: stop');
+        this.emit('stop', this);
       }
     };
 
@@ -80,54 +128,30 @@ export class Queue extends EventEmitter {
     return this;
   }
 
-  private status(): this {
-    this.emit('status');
-    DEBUG(`queue status: backlog: ${this.backlog.length}, active: ${this.active.size}`);
-    return this;
-  }
-
-  private addToQueue(item: QueueItem): QueueItem {
-    if (!this.backlog.includes(item)) {
-      this.backlog.push(item);
-      this.status();
-    }
-    return item;
-  }
-
   private sliceAmount(): number {
     if (this.backlog.length) {
       return Math.max(this.concurrentMax - this.active.size, 0);
     }
+
     return 0;
   }
 
-  private removeFromActive(item): void {
-    this.active.delete(item);
-    this.status();
+  private getTaskNumber(): number {
+    this.taskCounter += 1;
+    return this.taskCounter;
   }
 
-  private moveToQueue(item): void {
-    this.active.delete(item);
-    this.addToQueue(item);
-  }
-
-  private moveToActive(): QueueItem[] {
-    const avail = this.sliceAmount();
-    const items = this.backlog.splice(0, avail);
-    if (items.length) {
-      this.active = new Set([...this.active, ...items]);
-      this.status();
-      return items;
-    }
-    return [];
+  public get size(): number {
+    return this.backlog.length + this.active.size;
   }
 
   public put(
     fn: QueueFnType,
     fnParams: QueueFnParamsType,
-    options?: QueueItemOptionsType,
+    options: QueueItemOptionsType = {},
   ): QueueItem {
     const item = new QueueItem(fn, fnParams, options);
+    item.taskLabel = this.getTaskNumber();
     this.start().addToQueue(item);
     return item;
   }
