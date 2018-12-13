@@ -1,4 +1,4 @@
-# Queue
+# @coxmediagroup/queue-js
 
 JavaScript queue library
 
