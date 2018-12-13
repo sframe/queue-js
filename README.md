@@ -5,11 +5,11 @@ JavaScript queue library
 ## Quick Start
 
 ```bash
-  npm install coxmediagroup/queue
+  npm install coxmediagroup/queue-js
 ```
 
 ```js
-const { Queue } = require('@coxmediagroup/queue');
+const { Queue } = require('@coxmediagroup/queue-js');
 
 // Given there is a task to be done
 const fn = (input1, input2) => `${input1} ${input2}`;
