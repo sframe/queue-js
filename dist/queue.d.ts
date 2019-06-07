@@ -1,30 +1,26 @@
 /// <reference types="node" />
 import { EventEmitter } from 'events';
-import { QueueItem, QueueFnType, QueueFnParamsType, QueueItemOptionsType } from './queue-item';
+import { TaskFnParamsType, TaskFnType, Task, TaskOptions } from './task';
 export declare type QueueOptions = {
     concurrentMax?: number;
+    queueLabel?: string;
     queueIntervalMS?: number;
 };
 export declare class Queue extends EventEmitter {
     private active;
     private backlog;
+    private waiting;
     private concurrentMax;
-    private queueIntervalMS;
+    private queueLabel;
+    private queueCounter;
     private taskCounter;
-    private timerID;
     constructor(options?: QueueOptions);
-    private readonly isEmpty;
-    private addToQueue;
-    private moveToActive;
-    private moveToQueue;
-    private processItem;
+    private enqueue;
+    private getTaskLabel;
     private processQueue;
-    private removeFromActive;
-    private start;
-    private status;
-    private stop;
-    private sliceAmount;
-    private getTaskNumber;
+    private taskEventResponse;
+    private listenToTask;
+    toString(): string;
     readonly size: number;
-    put(fn: QueueFnType, fnParams: QueueFnParamsType, options?: QueueItemOptionsType): QueueItem;
+    put(fn: TaskFnType, fnParams: TaskFnParamsType, options?: TaskOptions): Task;
 }

@@ -5,113 +5,111 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const events_1 = require("events");
 const debug_1 = __importDefault(require("debug"));
-const queue_item_1 = require("./queue-item");
+const task_1 = require("./task");
 const DEBUG = debug_1.default('queue:queue');
 // No fewer than 1 concurrent task
 const CONCURRENT_MAX = 1;
-// No less than 15 ms between polling the queue
-const QUEUE_INTERVAL_MS = 15;
 class Queue extends events_1.EventEmitter {
     constructor(options = {}) {
         super();
         this.active = new Set();
-        this.backlog = [];
+        this.backlog = new Set();
+        this.waiting = new Set();
+        this.queueCounter = 0;
         this.taskCounter = 0;
-        const { concurrentMax = CONCURRENT_MAX, queueIntervalMS = QUEUE_INTERVAL_MS } = options;
+        const { concurrentMax = CONCURRENT_MAX, queueLabel = '' } = options;
         this.concurrentMax = Math.max(concurrentMax, CONCURRENT_MAX);
-        this.queueIntervalMS = Math.max(queueIntervalMS, QUEUE_INTERVAL_MS);
+        this.queueLabel = queueLabel;
     }
-    get isEmpty() {
-        return this.size === 0;
+    enqueue(task) {
+        this.queueCounter += 1;
+        task.setLabel(this.getTaskLabel());
+        this.listenToTask(task);
+        return task.added();
     }
-    addToQueue(item) {
-        if (!this.backlog.includes(item)) {
-            this.backlog.push(item);
-            this.status();
+    getTaskLabel() {
+        if (this.queueLabel) {
+            return `${this.queueLabel} - task_${this.queueCounter}`;
         }
-        return item;
-    }
-    moveToActive() {
-        const avail = this.sliceAmount();
-        const items = this.backlog.splice(0, avail);
-        if (items.length) {
-            this.active = new Set([...this.active, ...items]);
-            this.status();
-            return items;
-        }
-        return [];
-    }
-    moveToQueue(item) {
-        this.active.delete(item);
-        this.addToQueue(item);
-    }
-    processItem(item) {
-        if (!item.isDone()) {
-            Promise.resolve(item.run()).then(() => {
-                if (item.isDone()) {
-                    this.removeFromActive(item);
-                }
-                else {
-                    this.moveToQueue(item);
-                }
-            });
-        }
+        return `task_${this.queueCounter}`;
     }
     processQueue() {
-        this.moveToActive().map((item) => this.processItem(item));
-        if (this.isEmpty) {
-            return this.stop();
-        }
-        return this;
-    }
-    removeFromActive(item) {
-        this.active.delete(item);
-        this.status();
-    }
-    start() {
-        if (typeof this.timerID === 'undefined') {
-            this.timerID = setInterval(this.processQueue.bind(this), this.queueIntervalMS);
-            DEBUG(`queue status: start`);
-            this.emit('start', this);
-            return this.status();
-        }
-        return this;
-    }
-    status() {
-        DEBUG(`queue status: backlog: ${this.backlog.length}, active: ${this.active.size}`);
-        this.emit('status', this);
-        return this;
-    }
-    stop() {
-        const reallyStop = () => {
-            if (this.isEmpty) {
-                clearTimeout(this.timerID);
-                DEBUG('queue status: stop');
-                this.emit('stop', this);
+        for (const task of this.backlog) {
+            if (this.taskCounter < this.concurrentMax) {
+                if (task_1.TASK_TODO_STATUSES.includes(task.status)) {
+                    this.taskCounter += 1;
+                    task.run();
+                }
             }
-        };
-        // Delay a tiny bit, just in case a new item was added to the queue
-        setTimeout(reallyStop, this.queueIntervalMS);
+            else {
+                break;
+            }
+        }
+    }
+    taskEventResponse(task, taskStatus) {
+        switch (taskStatus) {
+            case 'added':
+                // (new) -> backlog
+                DEBUG(`${task} is set to added. Moving to backlog.`);
+                this.backlog.add(task);
+                break;
+            case 'running':
+                // backlog -> active
+                DEBUG(`${task} is running. Moving from backlog to active.`);
+                this.backlog.delete(task);
+                this.active.add(task);
+                break;
+            case 'ready':
+                // waiting -> backlog
+                DEBUG(`${task} is set to ready. Moving from waiting to backlog.`);
+                this.waiting.delete(task);
+                this.backlog.add(task);
+                break;
+            case 'retry':
+            case 'failed':
+            case 'success':
+                // active -> ...?
+                if (task.status === 'retry') {
+                    DEBUG(`${task} is set to retry. Moving from active to waiting.`);
+                    this.waiting.add(task);
+                }
+                if (task.isDone()) {
+                    DEBUG(`${task} is done. Removing from active.`);
+                    setTimeout(() => {
+                        DEBUG(`${task} was completed. Removing the task listener from ${this}.`);
+                        task.removeListener('notify', this.taskEventResponse);
+                    }, 500);
+                }
+                this.taskCounter -= 1;
+                this.active.delete(task);
+                if (this.taskCounter === 0) {
+                    setTimeout(() => {
+                        if (this.taskCounter === 0) {
+                            this.emit('empty', this);
+                        }
+                    }, 15);
+                }
+                break;
+        }
+        this.emit('task', task, taskStatus);
+        this.processQueue();
+    }
+    listenToTask(task) {
+        task.on('notify', (task, taskEvent) => this.taskEventResponse(task, taskEvent));
         return this;
     }
-    sliceAmount() {
-        if (this.backlog.length) {
-            return Math.max(this.concurrentMax - this.active.size, 0);
+    toString() {
+        if (this.queueLabel) {
+            return this.queueLabel;
         }
-        return 0;
-    }
-    getTaskNumber() {
-        this.taskCounter += 1;
-        return this.taskCounter;
+        return this.constructor.name;
     }
     get size() {
-        return this.backlog.length + this.active.size;
+        return this.active.size + this.backlog.size + this.waiting.size;
     }
     put(fn, fnParams, options = {}) {
-        const item = new queue_item_1.QueueItem(fn, fnParams, options);
-        item.taskLabel = this.getTaskNumber();
-        this.start().addToQueue(item);
-        return item;
+        const task = new task_1.Task(fn, fnParams, options);
+        return this.enqueue(task);
     }
 }
 exports.Queue = Queue;
