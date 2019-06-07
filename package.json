@@ -15,7 +15,7 @@
     "queue"
   ],
   "author": "Cox Media Group",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/coxmediagroup/queue/issues"
   },
